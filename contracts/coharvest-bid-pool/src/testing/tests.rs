@@ -461,6 +461,59 @@ fn test_partial_amount_to_be_distributed() {
     }
 }
 
+#[test]
+fn test_one_bid_pool_is_partially_matched() {
+    let mut bid_pools: Vec<BidPool> = vec![];
+
+    // Assume have 2 bid_pool at slot 10 & 20
+    bid_pools.push(BidPool {
+        slot: 10,
+        total_bid_amount: Uint128::from(1000_000000u128),
+        premium_rate: Decimal::from_ratio(10u128, 100u128),
+        index_snapshot: Decimal::zero(),
+        received_per_token: Decimal::zero(),
+    });
+    bid_pools.push(BidPool {
+        slot: 20,
+        total_bid_amount: Uint128::from(1000_000000u128),
+        premium_rate: Decimal::from_ratio(20u128, 100u128),
+        index_snapshot: Decimal::zero(),
+        received_per_token: Decimal::zero(),
+    });
+
+    let mut distribution_amount = Uint128::from(20_000000u128);
+    let exchange_rate = Decimal::from_ratio(1u128, 100u128);
+
+    // pool at slot 10:  fulfilled (1000*1.1*0.01 = 11) => remaining 9
+    // the remaining are distributed to pool at slot 20
+    // totalMatch = 1000 + 9 / 12 * 1000 = 1750
+    let total_matched =
+        process_calc_distribution_amount(&mut bid_pools, &mut distribution_amount, exchange_rate)
+            .unwrap();
+    assert_eq!(total_matched, Uint128::from(1750_000000u128));
+    assert_eq!(distribution_amount, Uint128::zero());
+
+    assert_eq!(
+        bid_pools[0],
+        BidPool {
+            slot: 10,
+            total_bid_amount: Uint128::from(1000_000000u128),
+            premium_rate: Decimal::from_ratio(10u128, 100u128),
+            index_snapshot: Decimal::one(),
+            received_per_token: Decimal::from_ratio(11u128, 1000u128),
+        }
+    );
+    assert_eq!(
+        bid_pools[1],
+        BidPool {
+            slot: 20,
+            total_bid_amount: Uint128::from(1000_000000u128),
+            premium_rate: Decimal::from_ratio(20u128, 100u128),
+            index_snapshot: Decimal::from_ratio(3u128, 4u128),
+            received_per_token: Decimal::from_ratio(9u128, 1000u128),
+        }
+    )
+}
 pub fn do_submit_bid(
     deps: DepsMut,
     env: Env,

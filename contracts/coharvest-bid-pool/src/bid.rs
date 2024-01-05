@@ -228,9 +228,7 @@ pub fn execute_distribute(
             continue;
         }
 
-        let amount_received = index_snapshot[bid.premium_slot as usize]
-            * receiver_per_token[bid.premium_slot as usize]
-            * Uint128::one();
+        let amount_received = bid.amount * receiver_per_token[bid.premium_slot as usize];
         let residue_bid = bid.amount * (Decimal::one() - index_snapshot[bid.premium_slot as usize]);
 
         if amount_received > Uint128::zero() {
@@ -280,8 +278,8 @@ pub fn process_calc_distribution_amount(
             *distribution_amount
         };
 
-        let index_snapshot = Decimal::from_ratio(desired_amount, actual_amount);
-        let received_per_token = Decimal::from_ratio(desired_amount, bid_pool.total_bid_amount);
+        let index_snapshot = Decimal::from_ratio(actual_amount, desired_amount);
+        let received_per_token = Decimal::from_ratio(actual_amount, bid_pool.total_bid_amount);
 
         total_matched += index_snapshot * bid_pool.total_bid_amount;
         *distribution_amount -= actual_amount;
