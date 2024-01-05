@@ -31,7 +31,6 @@ pub struct BiddingInfo {
     pub round: u64,
     pub start_time: u64,
     pub end_time: u64,
-    pub total_bid_threshold: Uint128,
     pub total_bid_amount: Uint128,
     pub total_bid_matched: Uint128,
 }

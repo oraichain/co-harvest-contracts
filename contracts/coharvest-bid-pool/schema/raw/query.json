@@ -195,6 +195,33 @@
     {
       "type": "object",
       "required": [
+        "bids_by_user"
+      ],
+      "properties": {
+        "bids_by_user": {
+          "type": "object",
+          "required": [
+            "round",
+            "user"
+          ],
+          "properties": {
+            "round": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "user": {
+              "$ref": "#/definitions/Addr"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "estimate_amount_receive_of_bid"
       ],
       "properties": {

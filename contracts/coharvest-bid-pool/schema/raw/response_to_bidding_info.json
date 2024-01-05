@@ -23,8 +23,7 @@
         "round",
         "start_time",
         "total_bid_amount",
-        "total_bid_matched",
-        "total_bid_threshold"
+        "total_bid_matched"
       ],
       "properties": {
         "end_time": {
@@ -46,9 +45,6 @@
           "$ref": "#/definitions/Uint128"
         },
         "total_bid_matched": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "total_bid_threshold": {
           "$ref": "#/definitions/Uint128"
         }
       },

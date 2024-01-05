@@ -10,7 +10,8 @@
     "is_distributed",
     "premium_slot",
     "residue_bid",
-    "round"
+    "round",
+    "timestamp"
   ],
   "properties": {
     "amount": {
@@ -39,6 +40,11 @@
       "$ref": "#/definitions/Uint128"
     },
     "round": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "timestamp": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

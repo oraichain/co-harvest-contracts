@@ -19,8 +19,8 @@ use crate::{
         InstantiateMsg, MigrateMsg, QueryMsg,
     },
     state::{
-        read_bids_by_round, BidPool, Config, BID, BIDDING_INFO, BIDS_BY_USER, BID_POOL, CONFIG,
-        DISTRIBUTION_INFO, LAST_ROUND_ID,
+        read_bids_by_round, Bid, BidPool, Config, BID, BIDDING_INFO, BIDS_BY_USER, BID_POOL,
+        CONFIG, DISTRIBUTION_INFO, LAST_ROUND_ID,
     },
 };
 
@@ -236,6 +236,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
+        QueryMsg::BidsByUser { round, user } => {
+            to_json_binary(&query_bids_by_user(deps, round, user)?)
+        }
     }
 }
 
@@ -247,6 +250,17 @@ fn query_bidding_info(deps: Deps, round: u64) -> StdResult<BiddingInfoResponse> 
         bid_info,
         distribution_info,
     })
+}
+
+fn query_bids_by_user(deps: Deps, round: u64, user: Addr) -> StdResult<Vec<Bid>> {
+    let bids_idx = BIDS_BY_USER.load(deps.storage, (round, user))?;
+
+    let bids: Vec<Bid> = bids_idx
+        .iter()
+        .map(|idx| BID.load(deps.storage, *idx))
+        .collect::<StdResult<_>>()?;
+
+    Ok(bids)
 }
 
 fn query_all_bid_pool_in_round(deps: Deps, round: u64) -> StdResult<Vec<BidPool>> {

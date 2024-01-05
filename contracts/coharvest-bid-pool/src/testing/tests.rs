@@ -119,7 +119,6 @@ fn test_create_new_round() {
                 round: 1,
                 start_time: env.block.time.seconds(),
                 end_time: env.block.time.plus_seconds(1000).seconds(),
-                total_bid_threshold: Uint128::from(1000000_000000u128),
                 total_bid_amount: Uint128::zero(),
                 total_bid_matched: Uint128::zero()
             },
@@ -305,7 +304,6 @@ fn test_submit_bids_and_querier() {
                 round: 1,
                 start_time: env.block.time.seconds(),
                 end_time: env.block.time.plus_seconds(1000).seconds(),
-                total_bid_threshold: Uint128::from(1000000_000000u128),
                 total_bid_amount: Uint128::from(600_000000u128),
                 total_bid_matched: Uint128::zero()
             },

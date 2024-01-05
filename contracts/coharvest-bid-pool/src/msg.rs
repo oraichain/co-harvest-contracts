@@ -75,6 +75,8 @@ pub enum QueryMsg {
     },
     #[returns(Vec<u64>)]
     BidsIdxByUser { round: u64, user: Addr },
+    #[returns(Vec<Bid>)]
+    BidsByUser { round: u64, user: Addr },
     #[returns(EstimateAmountReceiveOfBidResponse)]
     EstimateAmountReceiveOfBid {
         round: u64,

@@ -37,7 +37,6 @@ pub fn execute_create_new_round(
         start_time,
         end_time,
         total_bid_amount: Uint128::zero(),
-        total_bid_threshold,
         total_bid_matched: Uint128::zero(),
     };
 
@@ -81,6 +80,14 @@ pub fn execute_submit_bid(
             config.min_deposit_amount, amount
         ))));
     }
+
+    if premium_slot < 1 || premium_slot > config.max_slot {
+        return Err(ContractError::Std(StdError::generic_err(format!(
+            "premium slot must be within the range 1 and {}, reaching {}",
+            config.max_slot, premium_slot
+        ))));
+    }
+
     // get bid pool info
     let mut bidding_info: BiddingInfo = BIDDING_INFO.load(deps.storage, round)?;
 
