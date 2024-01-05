@@ -58,6 +58,7 @@ pub struct Bid {
     pub idx: u64,
     pub round: u64,
     pub premium_slot: u8,
+    pub timestamp: u64,
     pub bidder: Addr,
     pub amount: Uint128,
     pub residue_bid: Uint128,

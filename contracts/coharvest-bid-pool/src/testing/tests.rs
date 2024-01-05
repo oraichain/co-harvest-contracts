@@ -235,6 +235,7 @@ fn test_submit_bids_and_querier() {
             idx: 1,
             round: 1,
             bidder: Addr::unchecked("addr000"),
+            timestamp: mock_env().block.time.seconds(),
             amount: Uint128::from(100_000000u128),
             residue_bid: Uint128::from(100_000000u128),
             premium_slot: 1,

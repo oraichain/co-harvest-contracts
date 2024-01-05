@@ -96,6 +96,7 @@ pub fn execute_submit_bid(
     let bid = Bid {
         idx: bid_idx,
         round,
+        timestamp: env.block.time.seconds(),
         premium_slot,
         bidder: deps.api.addr_validate(&bidder)?,
         amount,
