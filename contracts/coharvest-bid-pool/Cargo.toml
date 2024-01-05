@@ -1,0 +1,29 @@
+[package]
+name = "coharvest-bid-pool"
+version = "0.1.0"
+edition = "2021"
+description = ""
+license = "Apache-2.0"
+repository = ""
+homepage = "https://orai.io"
+documentation = "https://docs.orai.io"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema = "1.5.0"
+cw2 = "1.0.1"
+cw20 = "1.0.1"
+cosmwasm-std = { version = "1.5.0" }
+cw-storage-plus = "1.0.1"
+cw-controllers = "1.0.1"
+thiserror = { version = "1.0.23" }
+oraiswap = "1.0.1"
+cw-utils = "0.16.0"
+protobuf = "=3.2.0"
