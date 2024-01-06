@@ -3,10 +3,10 @@ use std::str::FromStr;
 use cosmwasm_std::{
     attr, from_json,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, Api, Decimal, DepsMut, Env, MessageInfo, OwnedDeps, Querier, Response,
-    StdError, Storage, Uint128,
+    to_json_binary, Addr, Api, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, OwnedDeps, Querier,
+    Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
-use cw20::Cw20ReceiveMsg;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use oraiswap::asset::AssetInfo;
 
 use crate::{
@@ -126,7 +126,8 @@ fn test_create_new_round() {
                 total_distribution: Uint128::from(20000_000000u128),
                 exchange_rate: Decimal::zero(),
                 is_released: false,
-                actual_distributed: Uint128::zero()
+                actual_distributed: Uint128::zero(),
+                num_bids_ditributed: 0
             }
         }
     );
@@ -311,7 +312,8 @@ fn test_submit_bids_and_querier() {
                 total_distribution: Uint128::from(20000_000000u128),
                 exchange_rate: Decimal::zero(),
                 is_released: false,
-                actual_distributed: Uint128::zero()
+                actual_distributed: Uint128::zero(),
+                num_bids_ditributed: 0u64,
             }
         }
     );
@@ -512,6 +514,398 @@ fn test_one_bid_pool_is_partially_matched() {
         }
     )
 }
+
+#[test]
+fn test_all_bid_matched_but_distribution_amount_remains() {
+    let mut bid_pools: Vec<BidPool> = vec![];
+
+    // totalBid = 96000
+    for slot in 1..=25 {
+        bid_pools.push(BidPool {
+            slot,
+            total_bid_amount: Uint128::from(4000_000000u128),
+            premium_rate: Decimal::from_ratio(slot as u128, 100u128),
+            index_snapshot: Decimal::zero(),
+            received_per_token: Decimal::zero(),
+        });
+    }
+
+    // totalBid = 25 * 4000 = 100000
+    // exchangeRate = 0.01
+    // => actual distribute = 1130
+    let mut distribution_amount = Uint128::from(1200_000000u128);
+    let exchange_rate = Decimal::from_ratio(1u128, 100u128);
+
+    let total_matched =
+        process_calc_distribution_amount(&mut bid_pools, &mut distribution_amount, exchange_rate)
+            .unwrap();
+    assert_eq!(total_matched, Uint128::from(100000_000000u128));
+    assert_eq!(distribution_amount, Uint128::from(70_000000u128));
+}
+
+#[test]
+fn test_finalize_bidding_round_result() {
+    let mut deps = mock_dependencies();
+    init(&mut deps);
+
+    // fulfilled
+    let mut env = mock_env();
+    let msg = ExecuteMsg::CreateNewRound {
+        total_bid_threshold: Uint128::from(1000000_000000u128),
+        start_time: env.block.time.seconds(),
+        end_time: env.block.time.plus_seconds(1000).seconds(),
+        total_distribution: Uint128::from(1080_000000u128),
+    };
+    execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap();
+
+    for i in 1..=25 {
+        do_submit_bid(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(ORAIX_ADDR, &vec![]),
+            "addr000".to_string(),
+            Uint128::from(4000_000000u128),
+            1,
+            i,
+        )
+        .unwrap();
+    }
+
+    // finalize error, unauthorized
+    let msg = ExecuteMsg::FinalizeBiddingRoundResult {
+        round: 1,
+        exchange_rate: Decimal::from_ratio(1u128, 100u128),
+    };
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info("addr000", &vec![]),
+        msg.clone(),
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    // finalize error, this round has not ended
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::BidNotEnded {});
+
+    // finalize success
+    env.block.time = env.block.time.plus_seconds(1001);
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "finalize_bidding_round_result"),
+            attr("round", "1"),
+            attr("exchange_rate", "0.01"),
+            attr("total_matched", "96000000000"),
+            attr("actual_distributed", "1080000000"),
+        ]
+    );
+
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: ORAIX_ADDR.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::Burn {
+                amount: Uint128::from(96000_000000u128)
+            })
+            .unwrap(),
+            funds: vec![]
+        }))]
+    );
+
+    // case 2: all_bid_matched_but_distribution_amount_remains
+    let msg = ExecuteMsg::CreateNewRound {
+        total_bid_threshold: Uint128::from(1000000_000000u128),
+        start_time: env.block.time.seconds(),
+        end_time: env.block.time.plus_seconds(1000).seconds(),
+        total_distribution: Uint128::from(1200_000000u128),
+    };
+    execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap();
+
+    for i in 1..=25 {
+        do_submit_bid(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(ORAIX_ADDR, &vec![]),
+            "addr000".to_string(),
+            Uint128::from(4000_000000u128),
+            2,
+            i,
+        )
+        .unwrap();
+    }
+    let msg = ExecuteMsg::FinalizeBiddingRoundResult {
+        round: 2,
+        exchange_rate: Decimal::from_ratio(1u128, 100u128),
+    };
+    env.block.time = env.block.time.plus_seconds(1001);
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "finalize_bidding_round_result"),
+            attr("round", "2"),
+            attr("exchange_rate", "0.01"),
+            attr("total_matched", "100000000000"),
+            attr("actual_distributed", "1130000000"),
+        ]
+    );
+
+    assert_eq!(
+        res.messages,
+        vec![
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ORAIX_ADDR.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Burn {
+                    amount: Uint128::from(100000_000000u128)
+                })
+                .unwrap(),
+                funds: vec![]
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: USDC.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: OWNER.to_string(),
+                    amount: Uint128::from(70_000000u128)
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+        ]
+    );
+}
+
+#[test]
+fn test_distribute() {
+    let mut deps = mock_dependencies();
+    init(&mut deps);
+
+    // all bid filled
+    let mut env = mock_env();
+    let msg = ExecuteMsg::CreateNewRound {
+        total_bid_threshold: Uint128::from(1000000_000000u128),
+        start_time: env.block.time.seconds(),
+        end_time: env.block.time.plus_seconds(1000).seconds(),
+        total_distribution: Uint128::from(1200_000000u128),
+    };
+    execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap();
+
+    for i in 1..=25 {
+        do_submit_bid(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(ORAIX_ADDR, &vec![]),
+            "addr000".to_string(),
+            Uint128::from(4000_000000u128),
+            1,
+            i,
+        )
+        .unwrap();
+    }
+    let msg = ExecuteMsg::FinalizeBiddingRoundResult {
+        round: 1,
+        exchange_rate: Decimal::from_ratio(1u128, 100u128),
+    };
+    env.block.time = env.block.time.plus_seconds(1001);
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    // query total bid in this round
+    let num_bids_in_round: u64 = from_json(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::NumbersBidInRound { round: 1 },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(num_bids_in_round, 25);
+
+    let msg = ExecuteMsg::Distribute {
+        round: 1,
+        start_after: None,
+        limit: None,
+    };
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info("addr000", &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "distribute"),
+            attr("total_bids_distributed", "25"),
+        ]
+    );
+
+    let msgs: Vec<SubMsg> = (1..=25)
+        .map(|i| {
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: USDC.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: "addr000".to_string(),
+                    amount: Uint128::from(4000_000000u128)
+                        * Decimal::from_ratio((100 + i) as u128, 100u128)
+                        * Decimal::from_ratio(1u128, 100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+        })
+        .collect();
+
+    assert_eq!(res.messages, msgs);
+
+    // 23 bid filled, bid 24-th partial fill, 25-th not fill
+    let msg = ExecuteMsg::CreateNewRound {
+        total_bid_threshold: Uint128::from(1000000_000000u128),
+        start_time: env.block.time.seconds(),
+        end_time: env.block.time.plus_seconds(1000).seconds(),
+        total_distribution: Uint128::from(1055_200000u128),
+    };
+    execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap();
+
+    for i in 1..=25 {
+        do_submit_bid(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(ORAIX_ADDR, &vec![]),
+            "addr000".to_string(),
+            Uint128::from(4000_000000u128),
+            2,
+            i,
+        )
+        .unwrap();
+    }
+    let msg = ExecuteMsg::FinalizeBiddingRoundResult {
+        round: 2,
+        exchange_rate: Decimal::from_ratio(1u128, 100u128),
+    };
+    env.block.time = env.block.time.plus_seconds(1001);
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    // query total bid in this round
+    let num_bids_in_round: u64 = from_json(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::NumbersBidInRound { round: 1 },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(num_bids_in_round, 25);
+
+    let msg = ExecuteMsg::Distribute {
+        round: 2,
+        start_after: None,
+        limit: None,
+    };
+    let res = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info("addr000", &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "distribute"),
+            attr("total_bids_distributed", "25"),
+        ]
+    );
+
+    let mut msgs: Vec<SubMsg> = (1..=23)
+        .map(|i| {
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: USDC.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: "addr000".to_string(),
+                    amount: Uint128::from(4000_000000u128)
+                        * Decimal::from_ratio((100 + i) as u128, 100u128)
+                        * Decimal::from_ratio(1u128, 100u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+        })
+        .collect();
+    // bid 24-th filled a-half
+    msgs.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: USDC.to_string(),
+        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: "addr000".to_string(),
+            amount: Uint128::from(4000_000000u128)
+                * Decimal::from_ratio((100 + 24) as u128, 100u128)
+                * Decimal::from_ratio(1u128, 100u128)
+                * Decimal::from_ratio(1u128, 2u128),
+        })
+        .unwrap(),
+        funds: vec![],
+    })));
+    msgs.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: ORAIX_ADDR.to_string(),
+        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: "addr000".to_string(),
+            amount: Uint128::from(4000_000000u128) * Decimal::from_ratio(1u128, 2u128),
+        })
+        .unwrap(),
+        funds: vec![],
+    })));
+
+    // bid 25-th not fill
+    msgs.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: ORAIX_ADDR.to_string(),
+        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: "addr000".to_string(),
+            amount: Uint128::from(4000_000000u128),
+        })
+        .unwrap(),
+        funds: vec![],
+    })));
+
+    assert_eq!(res.messages, msgs);
+}
+
 pub fn do_submit_bid(
     deps: DepsMut,
     env: Env,

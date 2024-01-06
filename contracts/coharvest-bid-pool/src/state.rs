@@ -41,6 +41,7 @@ pub struct DistributionInfo {
     pub exchange_rate: Decimal,
     pub is_released: bool,
     pub actual_distributed: Uint128,
+    pub num_bids_ditributed: u64,
 }
 
 #[cw_serde]
@@ -121,6 +122,7 @@ pub fn read_bids_by_round(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
 
     let start = calc_range_start(start_after)?.map(Bound::ExclusiveRaw);
+
     BIDS_BY_ROUND
         .prefix(round)
         .range(storage, start, None, Order::Ascending)
@@ -130,6 +132,13 @@ pub fn read_bids_by_round(
             Ok(idx)
         })
         .collect()
+}
+
+pub fn count_number_bids_in_round(storage: &dyn Storage, round: u64) -> u64 {
+    BIDS_BY_ROUND
+        .prefix(round)
+        .keys(storage, None, None, Order::Ascending)
+        .count() as u64
 }
 
 impl BiddingInfo {
@@ -143,7 +152,7 @@ impl BiddingInfo {
     }
 
     pub fn finished(&self, env: &Env) -> bool {
-        return self.end_time > env.block.time.seconds();
+        return self.end_time < env.block.time.seconds();
     }
 
     pub fn read_all_bid_pool(&self, storage: &dyn Storage) -> StdResult<Vec<BidPool>> {

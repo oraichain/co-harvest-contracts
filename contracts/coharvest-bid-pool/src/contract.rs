@@ -10,7 +10,7 @@ use oraiswap::asset::AssetInfo;
 
 use crate::{
     bid::{
-        execute_create_new_round, execute_distribute, execute_release_distribution_info,
+        execute_create_new_round, execute_distribute, execute_finalize_bidding_round_result,
         execute_submit_bid, process_calc_distribution_amount,
     },
     error::ContractError,
@@ -19,8 +19,8 @@ use crate::{
         InstantiateMsg, MigrateMsg, QueryMsg,
     },
     state::{
-        read_bids_by_round, Bid, BidPool, Config, BID, BIDDING_INFO, BIDS_BY_USER, BID_POOL,
-        CONFIG, DISTRIBUTION_INFO, LAST_ROUND_ID,
+        count_number_bids_in_round, read_bids_by_round, Bid, BidPool, Config, BID, BIDDING_INFO,
+        BIDS_BY_USER, BID_POOL, CONFIG, DISTRIBUTION_INFO, LAST_ROUND_ID,
     },
 };
 
@@ -85,10 +85,10 @@ pub fn execute(
             end_time,
             total_distribution,
         ),
-        ExecuteMsg::ReleaseDistributionInfo {
+        ExecuteMsg::FinalizeBiddingRoundResult {
             round,
             exchange_rate,
-        } => execute_release_distribution_info(deps, env, info, round, exchange_rate),
+        } => execute_finalize_bidding_round_result(deps, env, info, round, exchange_rate),
         ExecuteMsg::Distribute {
             round,
             start_after,
@@ -238,6 +238,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         QueryMsg::BidsByUser { round, user } => {
             to_json_binary(&query_bids_by_user(deps, round, user)?)
+        }
+        QueryMsg::NumbersBidInRound { round } => {
+            to_json_binary(&count_number_bids_in_round(deps.storage, round))
         }
     }
 }

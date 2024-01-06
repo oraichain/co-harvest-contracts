@@ -45,6 +45,7 @@ pub fn execute_create_new_round(
         exchange_rate: Decimal::zero(),
         is_released: false,
         actual_distributed: Uint128::zero(),
+        num_bids_ditributed: 0,
     };
 
     if !bidding_info.is_valid_duration(&env) {
@@ -126,7 +127,7 @@ pub fn execute_submit_bid(
     ]))
 }
 
-pub fn execute_release_distribution_info(
+pub fn execute_finalize_bidding_round_result(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -148,7 +149,7 @@ pub fn execute_release_distribution_info(
     let mut distribution_info = DISTRIBUTION_INFO.load(deps.storage, round)?;
     if distribution_info.is_released {
         return Err(ContractError::Std(StdError::generic_err(format!(
-            "round {} has been released",
+            "round {} has been finalized",
             round
         ))));
     }
@@ -172,26 +173,50 @@ pub fn execute_release_distribution_info(
     DISTRIBUTION_INFO.save(deps.storage, round, &distribution_info)?;
     BIDDING_INFO.save(deps.storage, round, &bidding_info)?;
 
-    let burn_msg: CosmosMsg = match config.underlying_token {
-        AssetInfo::NativeToken { denom } => CosmosMsg::Bank(BankMsg::Burn {
+    let mut msgs: Vec<CosmosMsg> = vec![];
+
+    // burn total_matched
+    match config.underlying_token {
+        AssetInfo::NativeToken { denom } => msgs.push(CosmosMsg::Bank(BankMsg::Burn {
             amount: vec![Coin {
                 denom,
                 amount: total_matched,
             }],
-        }),
-        AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
+        })),
+        AssetInfo::Token { contract_addr } => msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: contract_addr.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Burn {
                 amount: total_matched,
             })?,
             funds: vec![],
-        }),
+        })),
     };
 
-    // burn total_matched
+    // transfer remaining to owner
+    if !distribution_amount.is_zero() {
+        match config.distribution_token {
+            AssetInfo::NativeToken { denom } => msgs.push(CosmosMsg::Bank(BankMsg::Send {
+                to_address: config.owner.to_string(),
+                amount: vec![Coin {
+                    denom,
+                    amount: distribution_amount,
+                }],
+            })),
+            AssetInfo::Token { contract_addr } => msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: contract_addr.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: config.owner.to_string(),
+                    amount: distribution_amount,
+                })?,
+                funds: vec![],
+            })),
+        };
+    }
+
     Ok(Response::new()
         .add_attributes(vec![
-            ("action", "release_distribution_info"),
+            ("action", "finalize_bidding_round_result"),
+            ("round", &round.to_string()),
             ("exchange_rate", &exchange_rate.to_string()),
             ("total_matched", &total_matched.to_string()),
             (
@@ -199,7 +224,7 @@ pub fn execute_release_distribution_info(
                 &distribution_info.actual_distributed.to_string(),
             ),
         ])
-        .add_message(burn_msg))
+        .add_messages(msgs))
 }
 
 pub fn execute_distribute(
@@ -209,7 +234,7 @@ pub fn execute_distribute(
     limit: Option<u64>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let distribution_info = DISTRIBUTION_INFO.load(deps.storage, round)?;
+    let mut distribution_info = DISTRIBUTION_INFO.load(deps.storage, round)?;
 
     if !distribution_info.is_released {
         return Err(ContractError::BidNotEnded {});
@@ -240,7 +265,7 @@ pub fn execute_distribute(
 
         if amount_received > Uint128::zero() {
             msgs.push(into_cosmos_msg(
-                &config.underlying_token,
+                &config.distribution_token,
                 bid.bidder.to_string(),
                 amount_received,
             ));
@@ -248,20 +273,31 @@ pub fn execute_distribute(
 
         if residue_bid > Uint128::zero() {
             msgs.push(into_cosmos_msg(
-                &config.distribution_token,
+                &config.underlying_token,
                 bid.bidder.to_string(),
-                amount_received,
+                residue_bid,
             ));
         }
 
         bid.amount_received = amount_received;
         bid.residue_bid = residue_bid;
         bid.is_distributed = true;
+        distribution_info.num_bids_ditributed += 1;
 
         BID.save(deps.storage, idx, &bid)?;
     }
 
-    Ok(Response::new().add_attributes(vec![("action", "distribute")]))
+    DISTRIBUTION_INFO.save(deps.storage, round, &distribution_info)?;
+
+    Ok(Response::new()
+        .add_attributes(vec![
+            ("action", "distribute"),
+            (
+                "total_bids_distributed",
+                &distribution_info.num_bids_ditributed.to_string(),
+            ),
+        ])
+        .add_messages(msgs))
 }
 
 pub fn process_calc_distribution_amount(

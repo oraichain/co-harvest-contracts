@@ -32,7 +32,7 @@ pub enum ExecuteMsg {
         end_time: u64,
         total_distribution: Uint128,
     },
-    ReleaseDistributionInfo {
+    FinalizeBiddingRoundResult {
         round: u64,
         exchange_rate: Decimal,
     },
@@ -90,6 +90,8 @@ pub enum QueryMsg {
         bid_amount: Uint128,
         exchange_rate: Decimal,
     },
+    #[returns(u64)]
+    NumbersBidInRound { round: u64 },
 }
 
 #[cw_serde]
