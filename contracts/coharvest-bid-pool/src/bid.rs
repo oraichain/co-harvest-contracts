@@ -45,7 +45,7 @@ pub fn execute_create_new_round(
         exchange_rate: Decimal::zero(),
         is_released: false,
         actual_distributed: Uint128::zero(),
-        num_bids_ditributed: 0,
+        num_bids_distributed: 0,
     };
 
     if !bidding_info.is_valid_duration(&env) {
@@ -282,7 +282,7 @@ pub fn execute_distribute(
         bid.amount_received = amount_received;
         bid.residue_bid = residue_bid;
         bid.is_distributed = true;
-        distribution_info.num_bids_ditributed += 1;
+        distribution_info.num_bids_distributed += 1;
 
         BID.save(deps.storage, idx, &bid)?;
     }
@@ -294,7 +294,7 @@ pub fn execute_distribute(
             ("action", "distribute"),
             (
                 "total_bids_distributed",
-                &distribution_info.num_bids_ditributed.to_string(),
+                &distribution_info.num_bids_distributed.to_string(),
             ),
         ])
         .add_messages(msgs))

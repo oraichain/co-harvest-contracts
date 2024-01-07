@@ -41,7 +41,7 @@ pub struct DistributionInfo {
     pub exchange_rate: Decimal,
     pub is_released: bool,
     pub actual_distributed: Uint128,
-    pub num_bids_ditributed: u64,
+    pub num_bids_distributed: u64,
 }
 
 #[cw_serde]

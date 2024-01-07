@@ -4,7 +4,7 @@ use cosmwasm_std::{
     attr, from_json,
     testing::{mock_dependencies, mock_env, mock_info},
     to_json_binary, Addr, Api, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, OwnedDeps, Querier,
-    Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    Response, StdError, Storage, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use oraiswap::asset::AssetInfo;
@@ -127,7 +127,7 @@ fn test_create_new_round() {
                 exchange_rate: Decimal::zero(),
                 is_released: false,
                 actual_distributed: Uint128::zero(),
-                num_bids_ditributed: 0
+                num_bids_distributed: 0
             }
         }
     );
@@ -313,7 +313,7 @@ fn test_submit_bids_and_querier() {
                 exchange_rate: Decimal::zero(),
                 is_released: false,
                 actual_distributed: Uint128::zero(),
-                num_bids_ditributed: 0u64,
+                num_bids_distributed: 0u64,
             }
         }
     );
