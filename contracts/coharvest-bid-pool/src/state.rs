@@ -160,7 +160,7 @@ impl BiddingInfo {
     pub fn read_all_bid_pool(&self, storage: &dyn Storage) -> StdResult<Vec<BidPool>> {
         let config = CONFIG.load(storage)?;
 
-        let bid_poolss: Vec<BidPool> = (1..=config.max_slot)
+        let bid_pools: Vec<BidPool> = (1..=config.max_slot)
             .map(|slot| {
                 BID_POOL
                     .load(storage, (self.round, slot))
@@ -175,7 +175,7 @@ impl BiddingInfo {
             })
             .collect();
 
-        Ok(bid_poolss)
+        Ok(bid_pools)
     }
 }
 
