@@ -137,7 +137,7 @@ fn assert_underlying_token_match_bid_funds(
     underlying_token: AssetInfo,
     funds: AssetInfo,
 ) -> Result<(), ContractError> {
-    if !underlying_token.eq(&funds) {
+    if underlying_token.ne(&funds) {
         return Err(ContractError::InvalidBiddingToken {});
     }
     Ok(())
