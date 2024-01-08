@@ -15,6 +15,7 @@ use crate::{
     },
 };
 
+// only owner can call this function
 pub fn execute_create_new_round(
     deps: DepsMut,
     env: Env,
@@ -29,6 +30,7 @@ pub fn execute_create_new_round(
         return Err(ContractError::Unauthorized {});
     }
 
+    // create new bidding round info
     let mut last_round = LAST_ROUND_ID.load(deps.storage)?;
     last_round += 1;
 
@@ -52,7 +54,7 @@ pub fn execute_create_new_round(
         return Err(ContractError::InvalidBiddingTimeRange {});
     }
 
-    // store_bid
+    // store
     LAST_ROUND_ID.save(deps.storage, &last_round)?;
     BIDDING_INFO.save(deps.storage, last_round, &bidding_info)?;
     DISTRIBUTION_INFO.save(deps.storage, last_round, &distribution_info)?;
@@ -66,6 +68,7 @@ pub fn execute_create_new_round(
     ]))
 }
 
+//  Underlying asset is submitted to create a bid record
 pub fn execute_submit_bid(
     deps: DepsMut,
     env: Env,
@@ -75,6 +78,7 @@ pub fn execute_submit_bid(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
     if config.min_deposit_amount > amount {
         return Err(ContractError::Std(StdError::generic_err(format!(
             "Minimum deposit is {}, got {}",
@@ -96,10 +100,12 @@ pub fn execute_submit_bid(
         return Err(ContractError::BidNotOpen {});
     }
 
+    // read or create bid_pool, make sure slot is valid
     let mut bid_pool = read_or_create_bid_pool(deps.storage, round, premium_slot)?;
     bidding_info.total_bid_amount += amount;
     bid_pool.total_bid_amount += amount;
 
+    // create bid object
     let bid_idx = pop_bid_idx(deps.storage)?;
     let bid = Bid {
         idx: bid_idx,
@@ -127,6 +133,9 @@ pub fn execute_submit_bid(
     ]))
 }
 
+// only admin can call this method
+// when the bidding round ends, admin will finalized this bidding, update the exchange rate and calculate the amount allocated to all bid pool.
+// total number of matched token will be burn. And if after allocation there are still distributed tokens left, send them back to the owner
 pub fn execute_finalize_bidding_round_result(
     deps: DepsMut,
     env: Env,
@@ -141,7 +150,7 @@ pub fn execute_finalize_bidding_round_result(
 
     let mut bidding_info = BIDDING_INFO.load(deps.storage, round)?;
 
-    // check bidding must be finished
+    // check that bidding round must have ended
     if !bidding_info.finished(&env) {
         return Err(ContractError::BidNotEnded {});
     }
@@ -154,10 +163,12 @@ pub fn execute_finalize_bidding_round_result(
         ))));
     }
 
+    // update exchange_rate and mark this round as finalized
     distribution_info.exchange_rate = exchange_rate;
     distribution_info.is_released = true;
     let mut bid_pools = bidding_info.read_all_bid_pool(deps.storage)?;
 
+    // calculate the amount allocated to all bid pool
     let mut distribution_amount = distribution_info.total_distribution;
     let total_matched =
         process_calc_distribution_amount(&mut bid_pools, &mut distribution_amount, exchange_rate)?;
@@ -227,6 +238,7 @@ pub fn execute_finalize_bidding_round_result(
         .add_messages(msgs))
 }
 
+// after bidding round finalized, call this function to send the allocated tokens to all bidder, and if the bid still has bid token, transfer back to the bidder
 pub fn execute_distribute(
     deps: DepsMut,
     round: u64,
@@ -243,6 +255,7 @@ pub fn execute_distribute(
     let mut index_snapshot = vec![Decimal::zero(); config.max_slot as usize + 1];
     let mut receiver_per_token = vec![Decimal::zero(); config.max_slot as usize + 1];
 
+    // query all pool in round
     for slot in 1..=config.max_slot {
         if let Some(bid_pool) = BID_POOL.may_load(deps.storage, (round, slot))? {
             index_snapshot[slot as usize] = bid_pool.index_snapshot;
@@ -250,6 +263,7 @@ pub fn execute_distribute(
         }
     }
 
+    // load all bid in round
     let bids_idx = read_bids_by_round(deps.storage, round, start_after, limit)?;
     let mut msgs: Vec<CosmosMsg> = vec![];
 
@@ -260,6 +274,7 @@ pub fn execute_distribute(
             continue;
         }
 
+        // calc allocated amount and remaining amount of bid
         let amount_received = bid.amount * receiver_per_token[bid.premium_slot as usize];
         let residue_bid = bid.amount * (Decimal::one() - index_snapshot[bid.premium_slot as usize]);
 

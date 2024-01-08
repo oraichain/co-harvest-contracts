@@ -40,6 +40,7 @@ pub fn instantiate(
         min_deposit_amount: msg.min_deposit_amount,
     };
 
+    // store config
     CONFIG.save(deps.storage, &config)?;
     LAST_ROUND_ID.save(deps.storage, &0)?;
     Ok(Response::default())
@@ -101,6 +102,7 @@ pub fn execute(
             let config = CONFIG.load(deps.storage)?;
             let funds = one_coin(&info).unwrap();
 
+            // check the token participating in the bidding is valid
             if !config
                 .underlying_token
                 .eq(&AssetInfo::NativeToken { denom: funds.denom })
@@ -131,8 +133,8 @@ fn receive_cw20(
             round,
             premium_slot,
         } => {
-            // check bidding token is valid
             let config: Config = CONFIG.load(deps.storage)?;
+            // check the token participating in the bidding is valid
             if !config.underlying_token.eq(&AssetInfo::Token {
                 contract_addr: info.sender,
             }) {
@@ -295,9 +297,8 @@ fn query_estimate_amount_receive_of_bid(
         receiver_per_token[bid_pool.slot as usize] = bid_pool.received_per_token;
     }
 
-    let amount_received = index_snapshot[bid.premium_slot as usize]
-        * receiver_per_token[bid.premium_slot as usize]
-        * Uint128::one();
+    let amount_received =
+        bid.amount * receiver_per_token[bid.premium_slot as usize] * Uint128::one();
     let residue_bid = bid.amount * (Decimal::one() - index_snapshot[bid.premium_slot as usize]);
 
     Ok(EstimateAmountReceiveOfBidResponse {
@@ -335,8 +336,7 @@ fn query_estimate_amount_receive(
         receiver_per_token[bid_pool.slot as usize] = bid_pool.received_per_token;
     }
 
-    let amount_received =
-        index_snapshot[slot as usize] * receiver_per_token[slot as usize] * Uint128::one();
+    let amount_received = bid_amount * receiver_per_token[slot as usize] * Uint128::one();
     let residue_bid = bid_amount * (Decimal::one() - index_snapshot[slot as usize]);
 
     Ok(EstimateAmountReceiveOfBidResponse {

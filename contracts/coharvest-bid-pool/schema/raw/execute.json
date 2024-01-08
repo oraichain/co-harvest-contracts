@@ -127,10 +127,10 @@
     {
       "type": "object",
       "required": [
-        "release_distribution_info"
+        "finalize_bidding_round_result"
       ],
       "properties": {
-        "release_distribution_info": {
+        "finalize_bidding_round_result": {
           "type": "object",
           "required": [
             "exchange_rate",

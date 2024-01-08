@@ -13,7 +13,10 @@ use crate::{
     bid::process_calc_distribution_amount,
     contract::{execute, instantiate, query},
     error::ContractError,
-    msg::{BiddingInfoResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{
+        BiddingInfoResponse, Cw20HookMsg, EstimateAmountReceiveOfBidResponse, ExecuteMsg,
+        InstantiateMsg, QueryMsg,
+    },
     state::{Bid, BidPool, BiddingInfo, Config, DistributionInfo},
 };
 
@@ -906,6 +909,111 @@ fn test_distribute() {
     assert_eq!(res.messages, msgs);
 }
 
+#[test]
+fn test_estimate_token_received() {
+    let mut deps = mock_dependencies();
+    init(&mut deps);
+
+    // all bid filled
+    let env = mock_env();
+    let msg = ExecuteMsg::CreateNewRound {
+        total_bid_threshold: Uint128::from(1000000_000000u128),
+        start_time: env.block.time.seconds(),
+        end_time: env.block.time.plus_seconds(1000).seconds(),
+        total_distribution: Uint128::from(1130_000000u128),
+    };
+    execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap();
+
+    for i in 1..=25 {
+        do_submit_bid(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(ORAIX_ADDR, &vec![]),
+            "addr000".to_string(),
+            Uint128::from(4000_000000u128),
+            1,
+            i,
+        )
+        .unwrap();
+    }
+
+    // All bids will be matched
+    let res: EstimateAmountReceiveOfBidResponse = from_json(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::EstimateAmountReceiveOfBid {
+                round: 1,
+                idx: 10,
+                exchange_rate: Decimal::from_ratio(1u128, 100u128),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        res,
+        EstimateAmountReceiveOfBidResponse {
+            receive: Uint128::from(44_000000u128),
+            residue_bid: Uint128::zero()
+        }
+    );
+
+    // because all bids will be matched, so say submit another bid at slot 25 with 4000 tokens ==> all bids at slot 25 will match only half
+    let res: EstimateAmountReceiveOfBidResponse = from_json(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::EstimateAmountReceive {
+                round: 1,
+                slot: 25,
+                bid_amount: Uint128::from(4000_000000u128),
+                exchange_rate: Decimal::from_ratio(1u128, 100u128),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        res,
+        EstimateAmountReceiveOfBidResponse {
+            receive: Uint128::from(25_000000u128),
+            residue_bid: Uint128::from(2000_000000u128),
+        }
+    );
+
+    // try submit this bid
+    do_submit_bid(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(ORAIX_ADDR, &vec![]),
+        "addr000".to_string(),
+        Uint128::from(4000_000000u128),
+        1,
+        25,
+    )
+    .unwrap();
+    let res: EstimateAmountReceiveOfBidResponse = from_json(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::EstimateAmountReceiveOfBid {
+                round: 1,
+                idx: 26,
+                exchange_rate: Decimal::from_ratio(1u128, 100u128),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        res,
+        EstimateAmountReceiveOfBidResponse {
+            receive: Uint128::from(25_000000u128),
+            residue_bid: Uint128::from(2000_000000u128),
+        }
+    );
+}
 pub fn do_submit_bid(
     deps: DepsMut,
     env: Env,

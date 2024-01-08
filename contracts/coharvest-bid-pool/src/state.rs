@@ -4,11 +4,16 @@ use cw_storage_plus::{Bound, Item, Map};
 use oraiswap::asset::AssetInfo;
 
 pub const CONFIG: Item<Config> = Item::new("config");
+// mapping (round, slot) --> BiddingPool
 pub const BID_POOL: Map<(u64, u8), BidPool> = Map::new("bid_pool");
+// mapping round --> BiddingInfo
 pub const BIDDING_INFO: Map<u64, BiddingInfo> = Map::new("bidding_info");
 pub const LAST_ROUND_ID: Item<u64> = Item::new("last_round_id");
+// mapping (round, address) -> vec bid_idx of user
 pub const BIDS_BY_USER: Map<(u64, Addr), Vec<u64>> = Map::new("bids_by_user");
+// mapping (round, bid_idx) --> (true - bid_idx is included in this round)
 pub const BIDS_BY_ROUND: Map<(u64, u64), bool> = Map::new("bids_by_round");
+// mapping id --> Bid
 pub const BID: Map<u64, Bid> = Map::new("bid");
 pub const BID_IDX: Item<u64> = Item::new("bid_idx");
 pub const DISTRIBUTION_INFO: Map<u64, DistributionInfo> = Map::new("distribution_info");
@@ -18,52 +23,52 @@ const DEFAULT_LIMIT: u64 = 30;
 
 #[cw_serde]
 pub struct Config {
-    pub owner: Addr,
-    pub underlying_token: AssetInfo,
-    pub distribution_token: AssetInfo,
-    pub max_slot: u8,
-    pub premium_rate_per_slot: Decimal,
-    pub min_deposit_amount: Uint128,
+    pub owner: Addr,                    // owner address
+    pub underlying_token: AssetInfo,    // token used to participate in bidding
+    pub distribution_token: AssetInfo,  // tokens are used to reward bidding
+    pub max_slot: u8,                   // number of pools in a bidding round
+    pub premium_rate_per_slot: Decimal, // Premium rate increase for each slot
+    pub min_deposit_amount: Uint128,    // minimum number of tokens when participating in bidding
 }
 
 #[cw_serde]
 pub struct BiddingInfo {
-    pub round: u64,
-    pub start_time: u64,
-    pub end_time: u64,
-    pub total_bid_amount: Uint128,
-    pub total_bid_matched: Uint128,
+    pub round: u64,                 // round id
+    pub start_time: u64,            // start time of the bidding
+    pub end_time: u64,              // end time of the bidding
+    pub total_bid_amount: Uint128,  // amount of tokens participating in the bidding
+    pub total_bid_matched: Uint128, // the number of tokens matched in the bidding
 }
 
 #[cw_serde]
 pub struct DistributionInfo {
-    pub total_distribution: Uint128,
-    pub exchange_rate: Decimal,
-    pub is_released: bool,
-    pub actual_distributed: Uint128,
-    pub num_bids_distributed: u64,
+    pub total_distribution: Uint128, // the maximum amount of reward distributed in the bidding
+    pub exchange_rate: Decimal, // conversion ratio between underlying_token and distribution_token
+    pub is_released: bool,      // mark whether the bidding has been completed or not
+    pub actual_distributed: Uint128, // the actual token allocated in the bidding
+    pub num_bids_distributed: u64, // number of winning bids in the bidding
 }
 
 #[cw_serde]
 pub struct BidPool {
-    pub slot: u8,
-    pub total_bid_amount: Uint128,
-    pub premium_rate: Decimal,
-    pub index_snapshot: Decimal,
-    pub received_per_token: Decimal,
+    pub slot: u8,                    // the premium slot
+    pub total_bid_amount: Uint128,   // number of tokens deposited into this pool
+    pub premium_rate: Decimal,       // % bonus of the pool
+    pub index_snapshot: Decimal,     // parameter that represents rate at which bids are consumed
+    pub received_per_token: Decimal, //  number of reward tokens received for each token deposited into that pool
 }
 
 #[cw_serde]
 pub struct Bid {
-    pub idx: u64,
-    pub round: u64,
-    pub premium_slot: u8,
-    pub timestamp: u64,
-    pub bidder: Addr,
-    pub amount: Uint128,
-    pub residue_bid: Uint128,
-    pub amount_received: Uint128,
-    pub is_distributed: bool,
+    pub idx: u64,                 // bid id
+    pub round: u64,               // bidding round id
+    pub premium_slot: u8,         // the premium slot
+    pub timestamp: u64,           // time submit bit
+    pub bidder: Addr,             // bidder address
+    pub amount: Uint128,          // amount of underlying_token put up in bid
+    pub residue_bid: Uint128,     // amount of remaining underlying_token
+    pub amount_received: Uint128, // amount of tokens allocated
+    pub is_distributed: bool,     // mark whether this bid has been allocated or not
 }
 
 pub fn pop_bid_idx(storage: &mut dyn Storage) -> StdResult<u64> {

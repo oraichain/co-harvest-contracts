@@ -288,6 +288,29 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "numbers_bid_in_round"
+      ],
+      "properties": {
+        "numbers_bid_in_round": {
+          "type": "object",
+          "required": [
+            "round"
+          ],
+          "properties": {
+            "round": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

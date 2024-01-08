@@ -228,10 +228,10 @@
       {
         "type": "object",
         "required": [
-          "release_distribution_info"
+          "finalize_bidding_round_result"
         ],
         "properties": {
-          "release_distribution_info": {
+          "finalize_bidding_round_result": {
             "type": "object",
             "required": [
               "exchange_rate",
@@ -698,6 +698,29 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "numbers_bid_in_round"
+        ],
+        "properties": {
+          "numbers_bid_in_round": {
+            "type": "object",
+            "required": [
+              "round"
+            ],
+            "properties": {
+              "round": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     ],
     "definitions": {
@@ -1009,6 +1032,7 @@
             "actual_distributed",
             "exchange_rate",
             "is_released",
+            "num_bids_distributed",
             "total_distribution"
           ],
           "properties": {
@@ -1020,6 +1044,11 @@
             },
             "is_released": {
               "type": "boolean"
+            },
+            "num_bids_distributed": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             },
             "total_distribution": {
               "$ref": "#/definitions/Uint128"
@@ -1259,6 +1288,13 @@
       }
     },
     "last_round_id": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "uint64",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "numbers_bid_in_round": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "uint64",
       "type": "integer",

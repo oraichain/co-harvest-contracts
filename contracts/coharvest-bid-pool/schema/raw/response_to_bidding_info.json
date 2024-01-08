@@ -60,6 +60,7 @@
         "actual_distributed",
         "exchange_rate",
         "is_released",
+        "num_bids_distributed",
         "total_distribution"
       ],
       "properties": {
@@ -71,6 +72,11 @@
         },
         "is_released": {
           "type": "boolean"
+        },
+        "num_bids_distributed": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "total_distribution": {
           "$ref": "#/definitions/Uint128"
