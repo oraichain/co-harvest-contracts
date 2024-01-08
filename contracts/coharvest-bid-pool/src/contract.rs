@@ -73,19 +73,10 @@ pub fn execute(
             min_deposit_amount,
         ),
         ExecuteMsg::CreateNewRound {
-            total_bid_threshold,
             start_time,
             end_time,
             total_distribution,
-        } => execute_create_new_round(
-            deps,
-            env,
-            info,
-            total_bid_threshold,
-            start_time,
-            end_time,
-            total_distribution,
-        ),
+        } => execute_create_new_round(deps, env, info, start_time, end_time, total_distribution),
         ExecuteMsg::FinalizeBiddingRoundResult {
             round,
             exchange_rate,

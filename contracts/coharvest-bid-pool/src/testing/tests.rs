@@ -76,7 +76,6 @@ fn test_create_new_round() {
     let env = mock_env();
     // create failed, unauthorized
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(20000_000000u128),
@@ -102,7 +101,6 @@ fn test_create_new_round() {
                 "end_time",
                 env.block.time.plus_seconds(1000).seconds().to_string()
             ),
-            attr("total_bid_threshold", "1000000000000")
         ]
     );
     // read bidding info & distribution info
@@ -144,7 +142,6 @@ fn test_submit_bids_and_querier() {
     let mut env = mock_env();
     // create failed, unauthorized
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(20000_000000u128),
@@ -554,7 +551,6 @@ fn test_finalize_bidding_round_result() {
     // fulfilled
     let mut env = mock_env();
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(1080_000000u128),
@@ -633,7 +629,6 @@ fn test_finalize_bidding_round_result() {
 
     // case 2: all_bid_matched_but_distribution_amount_remains
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(1200_000000u128),
@@ -707,7 +702,6 @@ fn test_distribute() {
     // all bid filled
     let mut env = mock_env();
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(1200_000000u128),
@@ -792,7 +786,6 @@ fn test_distribute() {
 
     // 23 bid filled, bid 24-th partial fill, 25-th not fill
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(1055_200000u128),
@@ -917,7 +910,6 @@ fn test_estimate_token_received() {
     // all bid filled
     let env = mock_env();
     let msg = ExecuteMsg::CreateNewRound {
-        total_bid_threshold: Uint128::from(1000000_000000u128),
         start_time: env.block.time.seconds(),
         end_time: env.block.time.plus_seconds(1000).seconds(),
         total_distribution: Uint128::from(1130_000000u128),

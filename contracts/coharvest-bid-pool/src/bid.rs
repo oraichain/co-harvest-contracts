@@ -20,7 +20,6 @@ pub fn execute_create_new_round(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    total_bid_threshold: Uint128,
     start_time: u64,
     end_time: u64,
     total_distribution: Uint128,
@@ -64,7 +63,6 @@ pub fn execute_create_new_round(
         ("round", &last_round.to_string()),
         ("start_time", &start_time.to_string()),
         ("end_time", &end_time.to_string()),
-        ("total_bid_threshold", &total_bid_threshold.to_string()),
     ]))
 }
 

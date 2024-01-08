@@ -27,7 +27,6 @@ pub enum ExecuteMsg {
         min_deposit_amount: Option<Uint128>,
     },
     CreateNewRound {
-        total_bid_threshold: Uint128,
         start_time: u64,
         end_time: u64,
         total_distribution: Uint128,
