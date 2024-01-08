@@ -130,19 +130,15 @@ pub fn read_bids_by_round(
 
     BIDS_BY_ROUND
         .prefix(round)
-        .range(storage, start, None, Order::Ascending)
+        .keys(storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|element| {
-            let (idx, _) = element?;
-            Ok(idx)
-        })
         .collect()
 }
 
 pub fn count_number_bids_in_round(storage: &dyn Storage, round: u64) -> u64 {
     BIDS_BY_ROUND
         .prefix(round)
-        .keys(storage, None, None, Order::Ascending)
+        .range(storage, None, None, Order::Ascending)
         .count() as u64
 }
 
