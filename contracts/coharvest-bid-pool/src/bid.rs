@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use oraiswap::asset::AssetInfo;
+use oraiswap::asset::{Asset, AssetInfo};
 
 use crate::{
     error::ContractError,
@@ -73,10 +73,12 @@ pub fn execute_submit_bid(
     round: u64,
     premium_slot: u8,
     bidder: String,
-    amount: Uint128,
+    funds: Asset,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
+    let amount = funds.amount;
+    // check the token participating in the bidding is valid
+    assert_underlying_token_match_bid_funds(config.underlying_token, funds.info)?;
     if config.min_deposit_amount > amount {
         return Err(ContractError::Std(StdError::generic_err(format!(
             "Minimum deposit is {}, got {}",
@@ -129,6 +131,16 @@ pub fn execute_submit_bid(
         ("premium_slot", &premium_slot.to_string()),
         ("amount", &amount.to_string()),
     ]))
+}
+
+fn assert_underlying_token_match_bid_funds(
+    underlying_token: AssetInfo,
+    funds: AssetInfo,
+) -> Result<(), ContractError> {
+    if !underlying_token.eq(&funds) {
+        return Err(ContractError::InvalidBiddingToken {});
+    }
+    Ok(())
 }
 
 // only admin can call this method
@@ -281,7 +293,7 @@ pub fn execute_distribute(
                 &config.distribution_token,
                 bid.bidder.to_string(),
                 amount_received,
-            ));
+            )?);
         }
 
         if residue_bid > Uint128::zero() {
@@ -289,7 +301,7 @@ pub fn execute_distribute(
                 &config.underlying_token,
                 bid.bidder.to_string(),
                 residue_bid,
-            ));
+            )?);
         }
 
         bid.amount_received = amount_received;

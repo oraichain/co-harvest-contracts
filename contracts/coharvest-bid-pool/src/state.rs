@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Env, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Decimal, Env, Order, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Item, Map};
 use oraiswap::asset::AssetInfo;
 
@@ -106,7 +106,8 @@ pub fn read_or_create_bid_pool(
             let bid_pool = BidPool {
                 slot: premium_slot,
                 premium_rate: config.premium_rate_per_slot
-                    * Decimal::from_atomics(Uint128::from(premium_slot as u128), 0).unwrap(),
+                    * Decimal::from_atomics(Uint128::from(premium_slot as u128), 0)
+                        .map_err(|err| StdError::generic_err(err.to_string()))?,
                 total_bid_amount: Uint128::zero(),
                 index_snapshot: Decimal::zero(),
                 received_per_token: Decimal::zero(),

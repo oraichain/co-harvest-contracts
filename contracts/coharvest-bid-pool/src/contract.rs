@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ReceiveMsg;
 use cw_utils::one_coin;
-use oraiswap::asset::AssetInfo;
+use oraiswap::asset::{Asset, AssetInfo};
 
 use crate::{
     bid::{
@@ -90,24 +90,19 @@ pub fn execute(
             round,
             premium_slot,
         } => {
-            let config = CONFIG.load(deps.storage)?;
-            let funds = one_coin(&info).unwrap();
-
-            // check the token participating in the bidding is valid
-            if !config
-                .underlying_token
-                .eq(&AssetInfo::NativeToken { denom: funds.denom })
-            {
-                return Err(ContractError::InvalidBiddingToken {});
-            }
-
+            let coin = one_coin(&info)?;
+            let asset_info = AssetInfo::NativeToken { denom: coin.denom };
+            let asset: Asset = Asset {
+                amount: coin.amount,
+                info: asset_info,
+            };
             execute_submit_bid(
                 deps,
                 env,
                 round,
                 premium_slot,
                 info.sender.to_string(),
-                funds.amount,
+                asset,
             )
         }
     }
@@ -124,22 +119,14 @@ fn receive_cw20(
             round,
             premium_slot,
         } => {
-            let config: Config = CONFIG.load(deps.storage)?;
             // check the token participating in the bidding is valid
-            if !config.underlying_token.eq(&AssetInfo::Token {
-                contract_addr: info.sender,
-            }) {
-                return Err(ContractError::InvalidBiddingToken {});
-            }
-
-            execute_submit_bid(
-                deps,
-                env,
-                round,
-                premium_slot,
-                cw20_msg.sender,
-                cw20_msg.amount,
-            )
+            let asset: Asset = Asset {
+                amount: cw20_msg.amount,
+                info: AssetInfo::Token {
+                    contract_addr: info.sender,
+                },
+            };
+            execute_submit_bid(deps, env, round, premium_slot, cw20_msg.sender, asset)
         }
     }
 }
