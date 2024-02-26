@@ -127,6 +127,61 @@ fn process_create_new_round(
     ]))
 }
 
+pub fn execute_update_round(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    idx: u64,
+    start_time: Option<u64>,
+    end_time: Option<u64>,
+    total_distribution: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // check sender is treasury contract
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut bidding_info = BIDDING_INFO.load(deps.storage, idx)?;
+    let mut distribution = DISTRIBUTION_INFO.load(deps.storage, idx)?;
+
+    // cannot update if round is ended
+    if bidding_info.finished(&env) {
+        return Err(ContractError::RoundEnded {});
+    }
+
+    if let Some(total_distribution) = total_distribution {
+        distribution.total_distribution = total_distribution;
+    }
+
+    if let Some(end_time) = end_time {
+        // end time must be gte current time
+        if end_time < env.block.time.seconds() {
+            return Err(ContractError::InvalidBiddingTimeRange {});
+        }
+
+        bidding_info.end_time = end_time;
+    }
+
+    if let Some(start_time) = start_time {
+        // cannot update if round is staring
+        if bidding_info.opening(&env) {
+            return Err(ContractError::InvalidBiddingTimeRange {});
+        }
+        bidding_info.start_time = start_time;
+    }
+
+    if !bidding_info.is_valid_duration(&env) {
+        return Err(ContractError::InvalidBiddingTimeRange {});
+    }
+
+    BIDDING_INFO.save(deps.storage, idx, &bidding_info)?;
+    DISTRIBUTION_INFO.save(deps.storage, idx, &distribution)?;
+
+    Ok(Response::new().add_attributes(vec![("action", "update_round")]))
+}
+
 //  Underlying asset is submitted to create a bid record
 pub fn execute_submit_bid(
     deps: DepsMut,
@@ -332,7 +387,7 @@ pub fn execute_distribute(
     }
 
     // load all bid in round
-    let bids_idx = read_bids_by_round(deps.storage, round, start_after, limit)?;
+    let bids_idx = read_bids_by_round(deps.storage, round, start_after, limit, None)?;
     let mut msgs: Vec<CosmosMsg> = vec![];
 
     for idx in bids_idx {

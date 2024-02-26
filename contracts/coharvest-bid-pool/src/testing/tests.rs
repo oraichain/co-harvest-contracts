@@ -214,6 +214,130 @@ fn test_create_new_round_by_treasury() {
 }
 
 #[test]
+fn test_update_round() {
+    let mut deps = mock_dependencies();
+    init(&mut deps);
+
+    let mut env = mock_env();
+
+    let msg = ExecuteMsg::CreateNewRound {
+        start_time: env.block.time.seconds(),
+        end_time: env.block.time.plus_seconds(1000).seconds(),
+        total_distribution: Uint128::from(20000_000000u128),
+    };
+
+    execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap();
+
+    // update round failed, unauthorized
+    let msg = ExecuteMsg::UpdateRound {
+        idx: 1,
+        start_time: Some(env.block.time.seconds()),
+        end_time: Some(env.block.time.plus_seconds(1000).seconds()),
+        total_distribution: Some(Uint128::from(20000_000000u128)),
+    };
+
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info("addr000", &vec![]),
+        msg.clone(),
+    )
+    .unwrap_err();
+
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    // round started, cannot update start_time
+    let err = execute(deps.as_mut(), env.clone(), mock_info(OWNER, &vec![]), msg).unwrap_err();
+
+    assert_eq!(err, ContractError::InvalidBiddingTimeRange {});
+
+    // end_time < current time => error
+    env.block.time = env.block.time.plus_seconds(100);
+    let msg = ExecuteMsg::UpdateRound {
+        idx: 1,
+        start_time: None,
+        end_time: Some(env.block.time.minus_seconds(10).seconds()),
+        total_distribution: Some(Uint128::from(20000_000000u128)),
+    };
+
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap_err();
+
+    assert_eq!(err, ContractError::InvalidBiddingTimeRange {});
+
+    // end time < start time
+    env.block.time = env.block.time.minus_seconds(200);
+    let msg = ExecuteMsg::UpdateRound {
+        idx: 1,
+        start_time: None,
+        end_time: Some(env.block.time.plus_seconds(10).seconds()),
+        total_distribution: Some(Uint128::from(20000_000000u128)),
+    };
+
+    let err = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap_err();
+
+    assert_eq!(err, ContractError::InvalidBiddingTimeRange {});
+
+    // update success
+
+    let msg = ExecuteMsg::UpdateRound {
+        idx: 1,
+        start_time: None,
+        end_time: Some(env.block.time.plus_seconds(1000).seconds()),
+        total_distribution: Some(Uint128::from(20000_000000u128)),
+    };
+
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(OWNER, &vec![]),
+        msg.clone(),
+    )
+    .unwrap();
+
+    // read bidding info & distribution info
+    let bidding_info: BiddingInfoResponse = from_json(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::BiddingInfo { round: 1 },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        bidding_info,
+        BiddingInfoResponse {
+            bid_info: BiddingInfo {
+                round: 1,
+                start_time: env.block.time.plus_seconds(100).seconds(),
+                end_time: env.block.time.plus_seconds(1000).seconds(),
+                total_bid_amount: Uint128::zero(),
+                total_bid_matched: Uint128::zero()
+            },
+            distribution_info: DistributionInfo {
+                total_distribution: Uint128::from(20000_000000u128),
+                exchange_rate: Decimal::zero(),
+                is_released: false,
+                actual_distributed: Uint128::zero(),
+                num_bids_distributed: 0
+            }
+        }
+    );
+}
+
+#[test]
 fn test_submit_bids_and_querier() {
     let mut deps = mock_dependencies();
     init(&mut deps);
@@ -444,6 +568,7 @@ fn test_submit_bids_and_querier() {
                 round: 1,
                 start_after: None,
                 limit: None,
+                order_by: None,
             },
         )
         .unwrap(),

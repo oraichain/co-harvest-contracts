@@ -49,6 +49,12 @@ pub enum ExecuteMsg {
         premium_slot: u8,
     },
     CreateNewRoundFromTreasury {},
+    UpdateRound {
+        idx: u64,
+        start_time: Option<u64>,
+        end_time: Option<u64>,
+        total_distribution: Option<Uint128>,
+    },
 }
 
 #[cw_serde]
@@ -77,6 +83,7 @@ pub enum QueryMsg {
         round: u64,
         start_after: Option<u64>,
         limit: Option<u64>,
+        order_by: Option<i32>,
     },
     #[returns(Vec<u64>)]
     BidsIdxByUser { round: u64, user: Addr },

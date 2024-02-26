@@ -26,4 +26,7 @@ pub enum ContractError {
 
     #[error("Bidding round has not ended yet")]
     BidNotEnded {},
+
+    #[error("This round has ended")]
+    RoundEnded {},
 }

@@ -11,7 +11,7 @@ use oraiswap::asset::{Asset, AssetInfo};
 use crate::{
     bid::{
         execute_create_new_round, execute_create_new_round_from_treasury, execute_distribute,
-        execute_finalize_bidding_round_result, execute_submit_bid,
+        execute_finalize_bidding_round_result, execute_submit_bid, execute_update_round,
         process_calc_distribution_amount,
     },
     error::ContractError,
@@ -122,6 +122,20 @@ pub fn execute(
             let sender = info.sender.clone();
             execute_create_new_round_from_treasury(deps, env, sender, asset)
         }
+        ExecuteMsg::UpdateRound {
+            idx,
+            start_time,
+            end_time,
+            total_distribution,
+        } => execute_update_round(
+            deps,
+            env,
+            info,
+            idx,
+            start_time,
+            end_time,
+            total_distribution,
+        ),
     }
 }
 
@@ -160,6 +174,7 @@ fn receive_cw20(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -249,11 +264,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             round,
             start_after,
             limit,
+            order_by,
         } => to_json_binary(&read_bids_by_round(
             deps.storage,
             round,
             start_after,
             limit,
+            order_by,
         )?),
         QueryMsg::BidsByUser { round, user } => {
             to_json_binary(&query_bids_by_user(deps, round, user)?)
