@@ -13,6 +13,8 @@ pub struct InstantiateMsg {
     pub max_slot: u8,
     pub premium_rate_per_slot: Decimal,
     pub min_deposit_amount: Uint128,
+    pub treasury: Addr,
+    pub bidding_duration: u64,
 }
 
 #[cw_serde]
@@ -25,6 +27,8 @@ pub enum ExecuteMsg {
         max_slot: Option<u8>,
         premium_rate_per_slot: Option<Decimal>,
         min_deposit_amount: Option<Uint128>,
+        treasury: Option<Addr>,
+        bidding_duration: Option<u64>,
     },
     CreateNewRound {
         start_time: u64,
@@ -44,11 +48,13 @@ pub enum ExecuteMsg {
         round: u64,
         premium_slot: u8,
     },
+    CreateNewRoundFromTreasury {},
 }
 
 #[cw_serde]
 pub enum Cw20HookMsg {
     SubmitBid { round: u64, premium_slot: u8 },
+    CreateNewRoundFromTreasury {},
 }
 
 #[cw_serde]

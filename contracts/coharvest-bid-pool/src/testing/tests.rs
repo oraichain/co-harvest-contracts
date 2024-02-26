@@ -36,6 +36,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(deps: &mut OwnedDeps<S, A, Q>) {
         max_slot: 25,
         premium_rate_per_slot: Decimal::from_str("0.01").unwrap(),
         min_deposit_amount: Uint128::from(100_000000u128),
+        treasury: Addr::unchecked("treasury"),
+        bidding_duration: 86400, //
     };
 
     let info = mock_info(OWNER, &[]);
@@ -64,6 +66,8 @@ fn proper_initialization() {
             max_slot: 25,
             premium_rate_per_slot: Decimal::from_str("0.01").unwrap(),
             min_deposit_amount: Uint128::from(100_000000u128),
+            treasury: Addr::unchecked("treasury"),
+            bidding_duration: 86400
         }
     )
 }
@@ -101,6 +105,7 @@ fn test_create_new_round() {
                 "end_time",
                 env.block.time.plus_seconds(1000).seconds().to_string()
             ),
+            attr("created_by", "owner"),
         ]
     );
     // read bidding info & distribution info
@@ -131,6 +136,80 @@ fn test_create_new_round() {
                 num_bids_distributed: 0
             }
         }
+    );
+}
+
+#[test]
+fn test_create_new_round_by_treasury() {
+    let mut deps = mock_dependencies();
+    init(&mut deps);
+
+    let mut env = mock_env();
+
+    // submit failed, invalid distribution token
+    let err = do_create_new_round(
+        deps.as_mut(),
+        env.clone(),
+        mock_info("dummy", &vec![]),
+        "addr000".to_string(),
+        Uint128::one(),
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::InvalidFunds {});
+
+    // submit failed, unauthorized
+    let err = do_create_new_round(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(USDC, &vec![]),
+        "addr000".to_string(),
+        Uint128::one(),
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    // submit success
+    let res = do_create_new_round(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(USDC, &vec![]),
+        "treasury".to_string(),
+        Uint128::one(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "create_new_bidding_round"),
+            attr("round", "1"),
+            attr(
+                "start_time",
+                env.block.time.plus_seconds(1).seconds().to_string()
+            ),
+            attr(
+                "end_time",
+                env.block.time.plus_seconds(86401).seconds().to_string()
+            ),
+            attr("created_by", "treasury"),
+        ]
+    );
+
+    // can't create new round if last round not started
+    env.block.time = env.block.time.minus_hours(1);
+    let err = do_create_new_round(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(USDC, &vec![]),
+        "treasury".to_string(),
+        Uint128::one(),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        ContractError::Std(StdError::generic_err(
+            "A new round cannot be created until the last round has started"
+        ))
     );
 }
 
@@ -169,7 +248,7 @@ fn test_submit_bids_and_querier() {
         1,
     )
     .unwrap_err();
-    assert_eq!(err, ContractError::InvalidBiddingToken {});
+    assert_eq!(err, ContractError::InvalidFunds {});
 
     // try submit to the bidding with amount is less than minimum deposit
     env.block.time = env.block.time.minus_seconds(100);
@@ -1019,6 +1098,24 @@ pub fn do_submit_bid(
         round,
         premium_slot,
     };
+    let receive = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender,
+        amount,
+        msg: to_json_binary(&msg).unwrap(),
+    });
+
+    execute(deps, env, info, receive)
+}
+
+pub fn do_create_new_round(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    sender: String,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let msg = Cw20HookMsg::CreateNewRoundFromTreasury {};
+
     let receive = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender,
         amount,

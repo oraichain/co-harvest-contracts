@@ -29,6 +29,8 @@ pub struct Config {
     pub max_slot: u8,                   // number of pools in a bidding round
     pub premium_rate_per_slot: Decimal, // Premium rate increase for each slot
     pub min_deposit_amount: Uint128,    // minimum number of tokens when participating in bidding
+    pub treasury: Addr,                 // treasury address
+    pub bidding_duration: u64,          // how long does a bidding round last?
 }
 
 #[cw_serde]

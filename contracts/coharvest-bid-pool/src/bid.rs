@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
+    to_json_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -29,6 +29,67 @@ pub fn execute_create_new_round(
         return Err(ContractError::Unauthorized {});
     }
 
+    // create new bidding round info
+    let response = process_create_new_round(deps, env, start_time, end_time, total_distribution)?;
+
+    Ok(response.add_attribute("created_by", "owner"))
+}
+
+pub fn execute_create_new_round_from_treasury(
+    deps: DepsMut,
+    env: Env,
+    sender: Addr,
+    funds: Asset,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // check the distribute token in the bidding is valid
+    assert_token_match_funds(config.distribution_token, funds.info)?;
+
+    // check sender is treasury contract
+    if sender != config.treasury {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // we are only current new round if last round has ended or still running
+    let last_round_id = LAST_ROUND_ID.load(deps.storage)?;
+
+    // if not exist round, new round will create at current time
+
+    let last_round = if last_round_id != 0 {
+        BIDDING_INFO.load(deps.storage, last_round_id)?
+    } else {
+        BiddingInfo {
+            round: 0,
+            start_time: env.block.time.seconds(),
+            end_time: env.block.time.seconds(),
+            total_bid_amount: Uint128::zero(),
+            total_bid_matched: Uint128::zero(),
+        }
+    };
+
+    if last_round.start_time > env.block.time.seconds() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "A new round cannot be created until the last round has started",
+        )));
+    }
+
+    let start_time = env.block.time.seconds().max(last_round.end_time + 1);
+    let end_time = start_time + config.bidding_duration;
+    let total_distribution = funds.amount;
+
+    let response = process_create_new_round(deps, env, start_time, end_time, total_distribution)?;
+
+    Ok(response.add_attribute("created_by", "treasury"))
+}
+
+fn process_create_new_round(
+    deps: DepsMut,
+    env: Env,
+    start_time: u64,
+    end_time: u64,
+    total_distribution: Uint128,
+) -> Result<Response, ContractError> {
     // create new bidding round info
     let mut last_round = LAST_ROUND_ID.load(deps.storage)?;
     last_round += 1;
@@ -78,7 +139,7 @@ pub fn execute_submit_bid(
     let config = CONFIG.load(deps.storage)?;
     let amount = funds.amount;
     // check the token participating in the bidding is valid
-    assert_underlying_token_match_bid_funds(config.underlying_token, funds.info)?;
+    assert_token_match_funds(config.underlying_token, funds.info)?;
     if config.min_deposit_amount > amount {
         return Err(ContractError::Std(StdError::generic_err(format!(
             "Minimum deposit is {}, got {}",
@@ -133,12 +194,9 @@ pub fn execute_submit_bid(
     ]))
 }
 
-fn assert_underlying_token_match_bid_funds(
-    underlying_token: AssetInfo,
-    funds: AssetInfo,
-) -> Result<(), ContractError> {
-    if underlying_token.ne(&funds) {
-        return Err(ContractError::InvalidBiddingToken {});
+fn assert_token_match_funds(expected: AssetInfo, funds: AssetInfo) -> Result<(), ContractError> {
+    if expected.ne(&funds) {
+        return Err(ContractError::InvalidFunds {});
     }
     Ok(())
 }
