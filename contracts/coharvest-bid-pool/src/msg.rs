@@ -13,6 +13,8 @@ pub struct InstantiateMsg {
     pub max_slot: u8,
     pub premium_rate_per_slot: Decimal,
     pub min_deposit_amount: Uint128,
+    pub treasury: Addr,
+    pub bidding_duration: u64,
 }
 
 #[cw_serde]
@@ -25,6 +27,8 @@ pub enum ExecuteMsg {
         max_slot: Option<u8>,
         premium_rate_per_slot: Option<Decimal>,
         min_deposit_amount: Option<Uint128>,
+        treasury: Option<Addr>,
+        bidding_duration: Option<u64>,
     },
     CreateNewRound {
         start_time: u64,
@@ -44,11 +48,19 @@ pub enum ExecuteMsg {
         round: u64,
         premium_slot: u8,
     },
+    CreateNewRoundFromTreasury {},
+    UpdateRound {
+        idx: u64,
+        start_time: Option<u64>,
+        end_time: Option<u64>,
+        total_distribution: Option<Uint128>,
+    },
 }
 
 #[cw_serde]
 pub enum Cw20HookMsg {
     SubmitBid { round: u64, premium_slot: u8 },
+    CreateNewRoundFromTreasury {},
 }
 
 #[cw_serde]
@@ -71,6 +83,7 @@ pub enum QueryMsg {
         round: u64,
         start_after: Option<u64>,
         limit: Option<u64>,
+        order_by: Option<i32>,
     },
     #[returns(Vec<u64>)]
     BidsIdxByUser { round: u64, user: Addr },
@@ -106,4 +119,13 @@ pub struct EstimateAmountReceiveOfBidResponse {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub owner: Addr,
+    pub underlying_token: AssetInfo,
+    pub distribution_token: AssetInfo,
+    pub max_slot: u8,
+    pub premium_rate_per_slot: Decimal,
+    pub min_deposit_amount: Uint128,
+    pub treasury: Addr,
+    pub bidding_duration: u64,
+}

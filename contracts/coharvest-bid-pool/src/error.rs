@@ -18,12 +18,15 @@ pub enum ContractError {
     #[error("Invalid bidding time range")]
     InvalidBiddingTimeRange {},
 
-    #[error("Invalid bidding token")]
-    InvalidBiddingToken {},
+    #[error("Invalid funds")]
+    InvalidFunds {},
 
     #[error("Bidding round is not opening")]
     BidNotOpen {},
 
     #[error("Bidding round has not ended yet")]
     BidNotEnded {},
+
+    #[error("This round has ended")]
+    RoundEnded {},
 }

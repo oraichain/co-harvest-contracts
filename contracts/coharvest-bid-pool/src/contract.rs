@@ -10,8 +10,9 @@ use oraiswap::asset::{Asset, AssetInfo};
 
 use crate::{
     bid::{
-        execute_create_new_round, execute_distribute, execute_finalize_bidding_round_result,
-        execute_submit_bid, process_calc_distribution_amount,
+        execute_create_new_round, execute_create_new_round_from_treasury, execute_distribute,
+        execute_finalize_bidding_round_result, execute_submit_bid, execute_update_round,
+        process_calc_distribution_amount,
     },
     error::ContractError,
     msg::{
@@ -38,6 +39,8 @@ pub fn instantiate(
         max_slot: msg.max_slot,
         premium_rate_per_slot: msg.premium_rate_per_slot,
         min_deposit_amount: msg.min_deposit_amount,
+        treasury: msg.treasury,
+        bidding_duration: msg.bidding_duration,
     };
 
     // store config
@@ -62,6 +65,8 @@ pub fn execute(
             max_slot,
             premium_rate_per_slot,
             min_deposit_amount,
+            treasury,
+            bidding_duration,
         } => execute_update_config(
             deps,
             info,
@@ -71,6 +76,8 @@ pub fn execute(
             max_slot,
             premium_rate_per_slot,
             min_deposit_amount,
+            treasury,
+            bidding_duration,
         ),
         ExecuteMsg::CreateNewRound {
             start_time,
@@ -105,6 +112,30 @@ pub fn execute(
                 asset,
             )
         }
+        ExecuteMsg::CreateNewRoundFromTreasury {} => {
+            let coin = one_coin(&info)?;
+            let asset_info = AssetInfo::NativeToken { denom: coin.denom };
+            let asset: Asset = Asset {
+                amount: coin.amount,
+                info: asset_info,
+            };
+            let sender = info.sender.clone();
+            execute_create_new_round_from_treasury(deps, env, sender, asset)
+        }
+        ExecuteMsg::UpdateRound {
+            idx,
+            start_time,
+            end_time,
+            total_distribution,
+        } => execute_update_round(
+            deps,
+            env,
+            info,
+            idx,
+            start_time,
+            end_time,
+            total_distribution,
+        ),
     }
 }
 
@@ -128,9 +159,22 @@ fn receive_cw20(
             };
             execute_submit_bid(deps, env, round, premium_slot, cw20_msg.sender, asset)
         }
+        Cw20HookMsg::CreateNewRoundFromTreasury {} => {
+            let asset: Asset = Asset {
+                amount: cw20_msg.amount,
+                info: AssetInfo::Token {
+                    contract_addr: info.sender.clone(),
+                },
+            };
+
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
+
+            execute_create_new_round_from_treasury(deps, env, sender, asset)
+        }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -140,6 +184,8 @@ fn execute_update_config(
     max_slot: Option<u8>,
     premium_rate_per_slot: Option<Decimal>,
     min_deposit_amount: Option<Uint128>,
+    treasury: Option<Addr>,
+    bidding_duration: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -164,6 +210,14 @@ fn execute_update_config(
     if let Some(min_deposit_amount) = min_deposit_amount {
         config.min_deposit_amount = min_deposit_amount;
     }
+    if let Some(treasury) = treasury {
+        config.treasury = treasury;
+    }
+    if let Some(bidding_duration) = bidding_duration {
+        config.bidding_duration = bidding_duration;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attribute("action", "update_config"))
 }
@@ -210,11 +264,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             round,
             start_after,
             limit,
+            order_by,
         } => to_json_binary(&read_bids_by_round(
             deps.storage,
             round,
             start_after,
             limit,
+            order_by,
         )?),
         QueryMsg::BidsByUser { round, user } => {
             to_json_binary(&query_bids_by_user(deps, round, user)?)
@@ -323,6 +379,19 @@ fn query_estimate_amount_receive(
     })
 }
 #[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let config = Config {
+        owner: msg.owner,
+        underlying_token: msg.underlying_token,
+        distribution_token: msg.distribution_token,
+        max_slot: msg.max_slot,
+        premium_rate_per_slot: msg.premium_rate_per_slot,
+        min_deposit_amount: msg.min_deposit_amount,
+        treasury: msg.treasury,
+        bidding_duration: msg.bidding_duration,
+    };
+
+    // store config
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }

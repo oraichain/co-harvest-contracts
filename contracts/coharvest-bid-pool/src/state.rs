@@ -29,6 +29,8 @@ pub struct Config {
     pub max_slot: u8,                   // number of pools in a bidding round
     pub premium_rate_per_slot: Decimal, // Premium rate increase for each slot
     pub min_deposit_amount: Uint128,    // minimum number of tokens when participating in bidding
+    pub treasury: Addr,                 // treasury address
+    pub bidding_duration: u64,          // how long does a bidding round last?
 }
 
 #[cw_serde]
@@ -72,7 +74,7 @@ pub struct Bid {
 }
 
 pub fn pop_bid_idx(storage: &mut dyn Storage) -> StdResult<u64> {
-    let last_idx = BID_IDX.load(storage).unwrap_or_else(|_| 1);
+    let last_idx = BID_IDX.load(storage).unwrap_or(1);
     BID_IDX.save(storage, &(last_idx + 1))?;
     Ok(last_idx)
 }
@@ -124,14 +126,18 @@ pub fn read_bids_by_round(
     round: u64,
     start_after: Option<u64>,
     limit: Option<u64>,
+    order_by: Option<i32>,
 ) -> StdResult<Vec<u64>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-
+    let order_by = order_by.map_or(Order::Ascending, |val| match val {
+        2 => Order::Descending,
+        _ => Order::Ascending,
+    });
     let start = calc_range_start(start_after)?.map(Bound::ExclusiveRaw);
 
     BIDS_BY_ROUND
         .prefix(round)
-        .keys(storage, start, None, Order::Ascending)
+        .keys(storage, start, None, order_by)
         .take(limit)
         .collect()
 }
@@ -145,16 +151,15 @@ pub fn count_number_bids_in_round(storage: &dyn Storage, round: u64) -> u64 {
 
 impl BiddingInfo {
     pub fn is_valid_duration(&self, env: &Env) -> bool {
-        return self.start_time < self.end_time && self.start_time >= env.block.time.seconds();
+        self.start_time < self.end_time && self.start_time >= env.block.time.seconds()
     }
 
     pub fn opening(&self, env: &Env) -> bool {
-        return self.start_time <= env.block.time.seconds()
-            && env.block.time.seconds() <= self.end_time;
+        self.start_time <= env.block.time.seconds() && env.block.time.seconds() <= self.end_time
     }
 
     pub fn finished(&self, env: &Env) -> bool {
-        return self.end_time < env.block.time.seconds();
+        self.end_time < env.block.time.seconds()
     }
 
     pub fn read_all_bid_pool(&self, storage: &dyn Storage) -> StdResult<Vec<BidPool>> {
@@ -162,18 +167,19 @@ impl BiddingInfo {
 
         let bid_pools: Vec<BidPool> = (1..=config.max_slot)
             .map(|slot| {
-                BID_POOL
+                Ok(BID_POOL
                     .load(storage, (self.round, slot))
                     .unwrap_or(BidPool {
                         slot,
                         total_bid_amount: Uint128::zero(),
                         premium_rate: config.premium_rate_per_slot
-                            * Decimal::from_atomics(Uint128::from(slot as u128), 0).unwrap(),
+                            * Decimal::from_atomics(Uint128::from(slot as u128), 0)
+                                .map_err(|err| StdError::generic_err(err.to_string()))?,
                         index_snapshot: Decimal::zero(),
                         received_per_token: Decimal::zero(),
-                    })
+                    }))
             })
-            .collect();
+            .collect::<StdResult<Vec<BidPool>>>()?;
 
         Ok(bid_pools)
     }
