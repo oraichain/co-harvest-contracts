@@ -379,6 +379,19 @@ fn query_estimate_amount_receive(
     })
 }
 #[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let config = Config {
+        owner: msg.owner,
+        underlying_token: msg.underlying_token,
+        distribution_token: msg.distribution_token,
+        max_slot: msg.max_slot,
+        premium_rate_per_slot: msg.premium_rate_per_slot,
+        min_deposit_amount: msg.min_deposit_amount,
+        treasury: msg.treasury,
+        bidding_duration: msg.bidding_duration,
+    };
+
+    // store config
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }

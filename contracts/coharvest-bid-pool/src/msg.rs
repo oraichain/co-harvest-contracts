@@ -119,4 +119,13 @@ pub struct EstimateAmountReceiveOfBidResponse {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub owner: Addr,
+    pub underlying_token: AssetInfo,
+    pub distribution_token: AssetInfo,
+    pub max_slot: u8,
+    pub premium_rate_per_slot: Decimal,
+    pub min_deposit_amount: Uint128,
+    pub treasury: Addr,
+    pub bidding_duration: u64,
+}
