@@ -167,7 +167,7 @@ fn receive_cw20(
                 },
             };
 
-            let sender = deps.api.addr_validate(&cw20_msg.sender).unwrap();
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
 
             execute_create_new_round_from_treasury(deps, env, sender, asset)
         }
