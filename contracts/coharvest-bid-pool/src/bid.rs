@@ -74,6 +74,7 @@ pub fn execute_create_new_round_from_treasury(
         )));
     }
 
+    // startTime = max(current time, end time of last round + 1)
     let start_time = env.block.time.seconds().max(last_round.end_time + 1);
     let end_time = start_time + config.bidding_duration;
     let total_distribution = funds.amount;
