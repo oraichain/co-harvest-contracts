@@ -129,7 +129,10 @@ pub fn read_bids_by_round(
     order_by: Option<i32>,
 ) -> StdResult<Vec<u64>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let order_by = order_by.map_or(Order::Ascending, |val| Order::try_from(val).ok().unwrap());
+    let order_by = order_by.map_or(Order::Ascending, |val| match val {
+        2 => Order::Descending,
+        _ => Order::Ascending,
+    });
     let start = calc_range_start(start_after)?.map(Bound::ExclusiveRaw);
 
     BIDS_BY_ROUND
@@ -164,18 +167,19 @@ impl BiddingInfo {
 
         let bid_pools: Vec<BidPool> = (1..=config.max_slot)
             .map(|slot| {
-                BID_POOL
+                Ok(BID_POOL
                     .load(storage, (self.round, slot))
                     .unwrap_or(BidPool {
                         slot,
                         total_bid_amount: Uint128::zero(),
                         premium_rate: config.premium_rate_per_slot
-                            * Decimal::from_atomics(Uint128::from(slot as u128), 0).unwrap(),
+                            * Decimal::from_atomics(Uint128::from(slot as u128), 0)
+                                .map_err(|err| StdError::generic_err(err.to_string()))?,
                         index_snapshot: Decimal::zero(),
                         received_per_token: Decimal::zero(),
-                    })
+                    }))
             })
-            .collect();
+            .collect::<StdResult<Vec<BidPool>>>()?;
 
         Ok(bid_pools)
     }
